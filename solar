@@ -1,0 +1,213 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Solar System (HTML)</title>
+  <style>
+    :root{
+      --size: 900px;
+      --center: calc(var(--size)/2);
+      --bg: radial-gradient(ellipse at center, #000012 0%, #000009 40%, #000000 100%);
+      --orbit-color: rgba(255,255,255,0.06);
+      --label-color: #dfe9ff;
+    }
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;color:var(--label-color);background:var(--bg);}
+    .wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px}
+    .viewport{width:var(--size);height:var(--size);position:relative;border-radius:8px;box-shadow:0 6px 30px rgba(0,0,0,0.6);overflow:hidden}
+    .space{position:absolute;inset:0}
+    .sun{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #fff4b8, #ffcc33 25%, #ffb31a 50%, #ff7a00 100%);box-shadow:0 0 36px 12px rgba(255,160,50,0.45), 0 0 80px 28px rgba(255,120,0,0.2)}/* orbit container — created by JS with style variables */
+.orbit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;border:1px dashed var(--orbit-color);display:block}
+.orbiter{position:absolute;left:50%;top:50%;transform-origin:center center}
+.body{position:absolute;transform:translate(-50%,-50%);border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center}
+.label{position:absolute;white-space:nowrap;font-size:12px;padding:2px 6px;border-radius:6px;background:rgba(0,0,0,0.45);backdrop-filter:blur(3px);transform:translate(-50%,-150%);}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.controls > *{background:rgba(255,255,255,0.04);padding:8px;border-radius:8px}
+input[type=range]{width:220px}
+.legend{font-size:13px;opacity:0.9}
+.notice{font-size:13px;opacity:0.9}
+@media (max-width:1000px){:root{--size:720px}} 
+@media (max-width:700px){:root{--size:92vw}}
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Interactive Solar System — HTML (8 planets + major moons)</h2>
+    <div class="controls">
+      <div>Speed: <span id="speedVal">1x</span></div>
+      <input id="speed" type="range" min="0" max="4" step="0.1" value="1">
+      <button id="toggleOrbits">Toggle Orbits</button>
+      <button id="toggleLabels">Toggle Labels</button>
+      <div class="legend">Scale: not to scale — distances & sizes scaled for visualization</div>
+    </div><div class="viewport" id="viewport">
+  <div class="space" id="space">
+    <div class="sun" title="Sun"></div>
+  </div>
+</div>
+<div class="notice">Data array at the top of the script lets you change planet & moon names, sizes, colors, orbital radius and orbital period (sec).</div>
+
+  </div>  <script>
+    /* ===== DATA (edit to change system) =====
+       Each planet entry supports: name, radius(px), color, orbitRadius(px), period(sec), moons: [{name, radius, orbitRadius, period}]
+       Period is animation duration in seconds for a full orbit. Smaller = faster.
+    */
+    const bodies = [
+      { name:'Mercury', radius:6, color:'#b7b7b7', orbit:40, period:7, moons:[] },
+      { name:'Venus', radius:10, color:'#e0c37b', orbit:70, period:10, moons:[] },
+      { name:'Earth', radius:11, color:'#4aa3ff', orbit:100, period:12, moons:[{name:'Moon', radius:4, orbit:16, period:2}] },
+      { name:'Mars', radius:8, color:'#d46d2b', orbit:130, period:18, moons:[{name:'Phobos', radius:2.5, orbit:6, period:0.8},{name:'Deimos', radius:2, orbit:10, period:1.2}] },
+      { name:'Jupiter', radius:22, color:'#d9b27b', orbit:180, period:30, moons:[{name:'Io', radius:4, orbit:26, period:2},{name:'Europa', radius:3.8, orbit:32, period:3},{name:'Ganymede', radius:5, orbit:40, period:4.5},{name:'Callisto', radius:4.6, orbit:48, period:6}] },
+      { name:'Saturn', radius:20, color:'#f7dfb1', orbit:240, period:40, moons:[{name:'Titan', radius:5, orbit:34, period:5},{name:'Enceladus', radius:2.5, orbit:22, period:1.5},{name:'Rhea', radius:3.2, orbit:28, period:3}] , rings:true},
+      { name:'Uranus', radius:15, color:'#b1e6e6', orbit:300, period:60, moons:[{name:'Titania', radius:3.6, orbit:18, period:3.6},{name:'Oberon', radius:3.6, orbit:22, period:4.4},{name:'Umbriel', radius:3.2, orbit:14, period:2.4},{name:'Ariel', radius:3.4, orbit:10, period:1.8},{name:'Miranda', radius:2.8, orbit:6, period:1.1}]},
+      { name:'Neptune', radius:15, color:'#3b6fd1', orbit:360, period:70, moons:[{name:'Triton', radius:4.6, orbit:26, period:5},{name:'Nereid', radius:2, orbit:38, period:9}] }
+    ];
+
+    const space = document.getElementById('space');
+    const speedInput = document.getElementById('speed');
+    const speedVal = document.getElementById('speedVal');
+    const toggleOrbitsBtn = document.getElementById('toggleOrbits');
+    const toggleLabelsBtn = document.getElementById('toggleLabels');
+
+    let showOrbits = true;
+    let showLabels = true;
+
+    function createSystem(){
+      // remove existing orbits (except sun)
+      const existing = document.querySelectorAll('.orbit, .orbiter');
+      existing.forEach(n=>n.remove());
+
+      bodies.forEach((p, idx)=>{
+        // orbit ring
+        const orbit = document.createElement('div');
+        orbit.className = 'orbit';
+        orbit.style.width = orbit.style.height = (p.orbit*2) + 'px';
+        orbit.style.marginLeft = -(p.orbit) + 'px';
+        orbit.style.marginTop = -(p.orbit) + 'px';
+        orbit.dataset.name = p.name;
+        space.appendChild(orbit);
+
+        // orbiter container rotates (animation)
+        const orbiter = document.createElement('div');
+        orbiter.className = 'orbiter';
+        orbiter.style.width = (p.orbit*2) + 'px';
+        orbiter.style.height = (p.orbit*2) + 'px';
+        orbiter.style.marginLeft = -(p.orbit) + 'px';
+        orbiter.style.marginTop = -(p.orbit) + 'px';
+
+        // animation via CSS animation
+        const animName = `orbit-${idx}`;
+        const style = document.createElement('style');
+        style.innerHTML = `@keyframes ${animName} { from { transform: rotate(0deg);} to{ transform: rotate(360deg);} }`;
+        document.head.appendChild(style);
+        orbiter.style.animation = `${animName} ${p.period}s linear infinite`;
+        orbiter.dataset.period = p.period;
+
+        // planet body
+        const planet = document.createElement('div');
+        planet.className = 'body';
+        planet.style.width = planet.style.height = (p.radius*2) + 'px';
+        planet.style.left = '50%';
+        planet.style.top = (50 - (p.radius/space.offsetHeight*100)) + '%'; // center on orbit circle
+        planet.style.transform = `translate(${p.orbit}px, 0) translate(-50%,-50%)`;
+        planet.style.background = p.color;
+        planet.title = p.name;
+
+        // label
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = p.name;
+        planet.appendChild(label);
+
+        // rings for Saturn
+        if (p.rings){
+          const ring = document.createElement('div');
+          ring.style.position='absolute';ring.style.width=(p.radius*6)+'px';ring.style.height=(p.radius*3)+'px';ring.style.border='2px solid rgba(255,255,255,0.06)';ring.style.borderRadius='50%';ring.style.left='50%';ring.style.top='50%';ring.style.transform='translate(-50%,-50%) rotate(20deg)';planet.appendChild(ring);
+        }
+
+        orbiter.appendChild(planet);
+
+        // moons: create smaller orbiters around planet using nested container
+        if (p.moons && p.moons.length){
+          const moonSystem = document.createElement('div');
+          moonSystem.style.position='absolute';moonSystem.style.left='50%';moonSystem.style.top='50%';moonSystem.style.width='0px';moonSystem.style.height='0px';moonSystem.style.transform='translate(0,0)';
+
+          p.moons.forEach((m, mIdx)=>{
+            const mOrb = document.createElement('div');
+            mOrb.className='orbiter';
+            mOrb.style.width = mOrb.style.height = (m.orbit*2) + 'px';
+            mOrb.style.marginLeft = -(m.orbit) + 'px';
+            mOrb.style.marginTop = -(m.orbit) + 'px';
+            // moon anim
+            const mAnim = `moon-${idx}-${mIdx}`;
+            const mStyle = document.createElement('style'); mStyle.innerHTML = `@keyframes ${mAnim}{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`; document.head.appendChild(mStyle);
+            mOrb.style.animation = `${mAnim} ${m.period}s linear infinite`;
+
+            const moon = document.createElement('div');
+            moon.className='body';
+            moon.style.width = moon.style.height = (m.radius*2)+'px';
+            moon.style.transform = `translate(${m.orbit}px, 0) translate(-50%,-50%)`;
+            moon.style.background = '#bbb';
+            moon.title = m.name;
+            const mlabel = document.createElement('div'); mlabel.className='label'; mlabel.textContent = m.name; moon.appendChild(mlabel);
+
+            mOrb.appendChild(moon);
+            moonSystem.appendChild(mOrb);
+          });
+
+          // attach moonSystem to planet (so moons orbit planet while planet orbits sun)
+          planet.appendChild(moonSystem);
+        }
+
+        space.appendChild(orbiter);
+      });
+
+      applySettings();
+    }
+
+    function applySettings(){
+      // show/hide orbits
+      document.querySelectorAll('.orbit').forEach(o=>o.style.display = showOrbits ? 'block' : 'none');
+      // labels
+      document.querySelectorAll('.label').forEach(l=>l.style.display = showLabels ? 'block' : 'none');
+    }
+
+    speedInput.addEventListener('input', ()=>{
+      const v = Number(speedInput.value);
+      speedVal.textContent = v.toFixed(1) + 'x';
+      // adjust document animations: scale their durations
+      document.querySelectorAll('.orbiter').forEach(o=>{
+        const base = Number(o.dataset.period) || 20; // period as set
+        // if base missing (moon orbiters), preserve existing duration
+        // We set computedDuration = base / v
+        o.style.animationDuration = (base / (v||0.0001)) + 's';
+      });
+    });
+
+    toggleOrbitsBtn.addEventListener('click', ()=>{ showOrbits = !showOrbits; applySettings(); toggleOrbitsBtn.textContent = showOrbits ? 'Hide Orbits' : 'Show Orbits'; });
+    toggleLabelsBtn.addEventListener('click', ()=>{ showLabels = !showLabels; applySettings(); toggleLabelsBtn.textContent = showLabels ? 'Hide Labels' : 'Show Labels'; });
+
+    // initialization
+    createSystem();
+
+    // ensure animation durations for moons get adjusted when speed slider moved
+    (function initAnimationDurations(){
+      // store base periods on orbiter elements
+      document.querySelectorAll('.orbiter').forEach(o=>{
+        if (!o.dataset.period){
+          // try to parse from created style rule by finding numeric seconds in animationDuration
+          // fallback to 20
+          o.dataset.period = parseFloat(getComputedStyle(o).animationDuration) || 20;
+        }
+      });
+    })();
+
+    // make viewport responsive: re-create on resize for consistent placement
+    let resizeTimer; window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ createSystem(); }, 200); });
+
+    // helpful: expose bodies for external editing via console
+    window.SOLAR_DATA = bodies;
+    console.log('Solar system data is available as window.SOLAR_DATA — edit then run createSystem() in console to refresh.');
+  </script></body>
+</html>
