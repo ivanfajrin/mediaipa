@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulasi Gerhana - Bumi Bertekstur Loop Halus</title>
+<style>
+  body{
+    font-family:'Poppins',sans-serif;
+    background:linear-gradient(180deg,#cbe8ff,#f7faff);
+    color:#333;
+    text-align:center;
+    padding:20px;
+  }
+  h1{color:#0078ff;font-weight:700;}
+  svg{
+    width:100%;max-width:900px;height:auto;
+    background:#dff5ff;border-radius:16px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.1);
+  }
+  .controls{
+    margin-top:15px;display:flex;
+    justify-content:center;gap:10px;flex-wrap:wrap;
+  }
+  button{
+    background:#0078ff;color:white;border:none;border-radius:8px;
+    padding:8px 14px;cursor:pointer;font-size:15px;
+  }
+  button:hover{background:#005fcc;}
+</style>
+</head>
+<body>
+<h1>🌞 Simulasi Gerhana — Bumi Berputar Mulus 🌕</h1>
+
+<svg id="scene" viewBox="0 0 1000 500">
+  <defs>
+    <!-- Pattern ganda agar seamless -->
+    <pattern id="earthTexture" patternUnits="userSpaceOnUse" x="0" y="0" width="2048" height="512">
+      <image id="earthMap1" href="3e4e63f8b1262c2bfe66356a217459cd.jpg"
+             width="1024" height="512" x="0" y="0" preserveAspectRatio="none"></image>
+      <image id="earthMap2" href="3e4e63f8b1262c2bfe66356a217459cd.jpg"
+             width="1024" height="512" x="1024" y="0" preserveAspectRatio="none"></image>
+    </pattern>
+
+    <radialGradient id="shadeGrad" cx="40%" cy="40%" r="80%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.2)"/>
+      <stop offset="60%" stop-color="rgba(255,255,255,0)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.25)"/>
+    </radialGradient>
+
+    <clipPath id="earthClip"><circle cx="500" cy="250" r="80"/></clipPath>
+  </defs>
+
+  <!-- Matahari -->
+  <circle cx="100" cy="250" r="80" fill="#FFD166"/>
+
+  <!-- Bumi -->
+  <g id="earthGroup">
+    <circle cx="500" cy="250" r="80" fill="#9ad0ff"/>
+    <circle id="earthSurface" cx="500" cy="250" r="80" fill="url(#earthTexture)" clip-path="url(#earthClip)"/>
+    <circle cx="500" cy="250" r="80" fill="url(#shadeGrad)"/>
+  </g>
+
+  <!-- Bulan -->
+  <circle id="moon" cx="700" cy="250" r="25" fill="#dcdde1"/>
+</svg>
+
+<div class="controls">
+  <button id="playEarth">▶️ Putar Bumi</button>
+  <button id="playOrbit">🌑 Putar Orbit Bulan</button>
+  <button id="reset">🔄 Reset</button>
+</div>
+
+<script>
+(() => {
+  const PAT_W = 2048; // total lebar dua gambar
+  const map1 = document.getElementById("earthMap1");
+  const map2 = document.getElementById("earthMap2");
+  let offset = 0;
+  let earthPlaying = false;
+  let orbitPlaying = false;
+  let animEarth, animOrbit;
+
+  const moon = document.getElementById("moon");
+  const earth = {x:500,y:250,r:80};
+  let orbitAngle = 0;
+  const orbitRadius = 220;
+
+  function updatePattern(){
+    // geser kedua gambar supaya tetap berulang
+    const shift = -(offset % 1024);
+    map1.setAttribute("x", shift);
+    map2.setAttribute("x", shift + 1024);
+  }
+
+  // Animasi rotasi bumi
+  function startEarth(){
+    earthPlaying = true;
+    document.getElementById("playEarth").textContent = "⏸️ Hentikan Bumi";
+    function animate(){
+      if(!earthPlaying) return;
+      offset += 1.5; // kecepatan rotasi
+      updatePattern();
+      animEarth = requestAnimationFrame(animate);
+    }
+    animate();
+  }
+  function stopEarth(){
+    earthPlaying = false;
+    document.getElementById("playEarth").textContent = "▶️ Putar Bumi";
+    cancelAnimationFrame(animEarth);
+  }
+
+  // Orbit bulan
+  function startOrbit(){
+    orbitPlaying = true;
+    document.getElementById("playOrbit").textContent = "⏸️ Hentikan Orbit";
+    function animateOrbit(){
+      if(!orbitPlaying) return;
+      orbitAngle = (orbitAngle + 0.8) % 360;
+      const rad = orbitAngle * Math.PI / 180;
+      const mx = earth.x + Math.cos(rad) * orbitRadius;
+      const my = earth.y + Math.sin(rad) * orbitRadius * 0.5;
+      moon.setAttribute("cx", mx);
+      moon.setAttribute("cy", my);
+      animOrbit = requestAnimationFrame(animateOrbit);
+    }
+    animateOrbit();
+  }
+  function stopOrbit(){
+    orbitPlaying = false;
+    document.getElementById("playOrbit").textContent = "🌑 Putar Orbit Bulan";
+    cancelAnimationFrame(animOrbit);
+  }
+
+  // Tombol
+  document.getElementById("playEarth").addEventListener("click",()=>{
+    earthPlaying ? stopEarth() : startEarth();
+  });
+  document.getElementById("playOrbit").addEventListener("click",()=>{
+    orbitPlaying ? stopOrbit() : startOrbit();
+  });
+  document.getElementById("reset").addEventListener("click",()=>{
+    stopEarth(); stopOrbit();
+    offset = 0; orbitAngle = 0;
+    updatePattern();
+    moon.setAttribute("cx", earth.x + orbitRadius);
+    moon.setAttribute("cy", earth.y);
+  });
+
+  updatePattern();
+})();
+</script>
+</body>
+</html>
